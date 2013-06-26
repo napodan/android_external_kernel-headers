@@ -1,40 +1,64 @@
 #ifndef __ASMARM_ELF_H
 #define __ASMARM_ELF_H
 
+#include <asm/hwcap.h>
 
 /*
  * ELF register definitions..
  */
-
 #include <asm/ptrace.h>
 #include <asm/user.h>
-#ifdef __KERNEL
-#include <asm/procinfo.h>
-#endif
+
+struct task_struct;
 
 typedef unsigned long elf_greg_t;
 typedef unsigned long elf_freg_t[3];
-
-#define EM_ARM	40
-#define EF_ARM_APCS26 0x08
-#define EF_ARM_SOFT_FLOAT 0x200
-#define EF_ARM_EABI_MASK 0xFF000000
-
-#define R_ARM_NONE	0
-#define R_ARM_PC24	1
-#define R_ARM_ABS32	2
-#define R_ARM_CALL	28
-#define R_ARM_JUMP24	29
 
 #define ELF_NGREG (sizeof (struct pt_regs) / sizeof(elf_greg_t))
 typedef elf_greg_t elf_gregset_t[ELF_NGREG];
 
 typedef struct user_fp elf_fpregset_t;
 
-/*
- * This is used to ensure we don't load something for the wrong architecture.
- */
-#define elf_check_arch(x) ( ((x)->e_machine == EM_ARM) && (ELF_PROC_OK((x))) )
+#define EM_ARM	40
+
+#define EF_ARM_EABI_MASK	0xff000000
+#define EF_ARM_EABI_UNKNOWN	0x00000000
+#define EF_ARM_EABI_VER1	0x01000000
+#define EF_ARM_EABI_VER2	0x02000000
+#define EF_ARM_EABI_VER3	0x03000000
+#define EF_ARM_EABI_VER4	0x04000000
+#define EF_ARM_EABI_VER5	0x05000000
+
+#define EF_ARM_BE8		0x00800000	/* ABI 4,5 */
+#define EF_ARM_LE8		0x00400000	/* ABI 4,5 */
+#define EF_ARM_MAVERICK_FLOAT	0x00000800	/* ABI 0 */
+#define EF_ARM_VFP_FLOAT	0x00000400	/* ABI 0 */
+#define EF_ARM_SOFT_FLOAT	0x00000200	/* ABI 0 */
+#define EF_ARM_OLD_ABI		0x00000100	/* ABI 0 */
+#define EF_ARM_NEW_ABI		0x00000080	/* ABI 0 */
+#define EF_ARM_ALIGN8		0x00000040	/* ABI 0 */
+#define EF_ARM_PIC		0x00000020	/* ABI 0 */
+#define EF_ARM_MAPSYMSFIRST	0x00000010	/* ABI 2 */
+#define EF_ARM_APCS_FLOAT	0x00000010	/* ABI 0, floats in fp regs */
+#define EF_ARM_DYNSYMSUSESEGIDX	0x00000008	/* ABI 2 */
+#define EF_ARM_APCS_26		0x00000008	/* ABI 0 */
+#define EF_ARM_SYMSARESORTED	0x00000004	/* ABI 1,2 */
+#define EF_ARM_INTERWORK	0x00000004	/* ABI 0 */
+#define EF_ARM_HASENTRY		0x00000002	/* All */
+#define EF_ARM_RELEXEC		0x00000001	/* All */
+
+#define R_ARM_NONE		0
+#define R_ARM_PC24		1
+#define R_ARM_ABS32		2
+#define R_ARM_CALL		28
+#define R_ARM_JUMP24		29
+#define R_ARM_V4BX		40
+#define R_ARM_PREL31		42
+#define R_ARM_MOVW_ABS_NC	43
+#define R_ARM_MOVT_ABS		44
+
+#define R_ARM_THM_CALL		10
+#define R_ARM_THM_JUMP24	30
 
 /*
  * These are used to set parameters in the core dumps.
@@ -47,7 +71,39 @@ typedef struct user_fp elf_fpregset_t;
 #endif
 #define ELF_ARCH	EM_ARM
 
-#define USE_ELF_CORE_DUMP
+/*
+ * This yields a string that ld.so will use to load implementation
+ * specific libraries for optimization.  This is more specific in
+ * intent than poking at uname or /proc/cpuinfo.
+ *
+ * For now we just provide a fairly general string that describes the
+ * processor family.  This could be made more specific later if someone
+ * implemented optimisations that require it.  26-bit CPUs give you
+ * "v1l" for ARM2 (no SWP) and "v2l" for anything else (ARM1 isn't
+ * supported).  32-bit CPUs give you "v3[lb]" for anything based on an
+ * ARM6 or ARM7 core and "armv4[lb]" for anything based on a StrongARM-1
+ * core.
+ */
+#define ELF_PLATFORM_SIZE 8
+#define ELF_PLATFORM	(elf_platform)
+
+extern char elf_platform[];
+
+struct elf32_hdr;
+
+/*
+ * This is used to ensure we don't load something for the wrong architecture.
+ */
+extern int elf_check_arch(const struct elf32_hdr *);
+#define elf_check_arch elf_check_arch
+
+extern int arm_elf_read_implies_exec(const struct elf32_hdr *, int);
+#define elf_read_implies_exec(ex,stk) arm_elf_read_implies_exec(&(ex), stk)
+
+struct task_struct;
+int dump_task_regs(struct task_struct *t, elf_gregset_t *elfregs);
+#define ELF_CORE_COPY_TASK_REGS dump_task_regs
+
 #define ELF_EXEC_PAGESIZE	4096
 
 /* This is the location that an ET_DYN program is loaded if exec'ed.  Typical
@@ -62,84 +118,7 @@ typedef struct user_fp elf_fpregset_t;
    have no such handler.  */
 #define ELF_PLAT_INIT(_r, load_addr)	(_r)->ARM_r0 = 0
 
-/* This yields a mask that user programs can use to figure out what
-   instruction set this cpu supports. */
-
-#define ELF_HWCAP	(elf_hwcap)
-
-/* This yields a string that ld.so will use to load implementation
-   specific libraries for optimization.  This is more specific in
-   intent than poking at uname or /proc/cpuinfo. */
-
-/* For now we just provide a fairly general string that describes the
-   processor family.  This could be made more specific later if someone
-   implemented optimisations that require it.  26-bit CPUs give you
-   "v1l" for ARM2 (no SWP) and "v2l" for anything else (ARM1 isn't
-   supported).  32-bit CPUs give you "v3[lb]" for anything based on an
-   ARM6 or ARM7 core and "armv4[lb]" for anything based on a StrongARM-1
-   core.  */
-
-#define ELF_PLATFORM_SIZE 8
-extern char elf_platform[];
-#define ELF_PLATFORM	(elf_platform)
-
-#ifdef __KERNEL__
-
-/*
- * 32-bit code is always OK.  Some cpus can do 26-bit, some can't.
- */
-#define ELF_PROC_OK(x)	(ELF_THUMB_OK(x) && ELF_26BIT_OK(x))
-
-#define ELF_THUMB_OK(x) \
-	(( (elf_hwcap & HWCAP_THUMB) && ((x)->e_entry & 1) == 1) || \
-	 ((x)->e_entry & 3) == 0)
-
-#define ELF_26BIT_OK(x) \
-	(( (elf_hwcap & HWCAP_26BIT) && (x)->e_flags & EF_ARM_APCS26) || \
-	  ((x)->e_flags & EF_ARM_APCS26) == 0)
-
-#ifndef CONFIG_IWMMXT
-
-/* Old NetWinder binaries were compiled in such a way that the iBCS
-   heuristic always trips on them.  Until these binaries become uncommon
-   enough not to care, don't trust the `ibcs' flag here.  In any case
-   there is no other ELF system currently supported by iBCS.
-   @@ Could print a warning message to encourage users to upgrade.  */
-#define SET_PERSONALITY(ex,ibcs2) \
-	set_personality(((ex).e_flags&EF_ARM_APCS26 ?PER_LINUX :PER_LINUX_32BIT))
-
-#else
-
-/*
- * All iWMMXt capable CPUs don't support 26-bit mode.  Yet they can run
- * legacy binaries which used to contain FPA11 floating point instructions
- * that have always been emulated by the kernel.  PFA11 and iWMMXt overlap
- * on coprocessor 1 space though.  We therefore must decide if given task
- * is allowed to use CP 0 and 1 for iWMMXt, or if they should be blocked
- * at all times for the prefetch exception handler to catch FPA11 opcodes
- * and emulate them.  The best indication to discriminate those two cases
- * is the SOFT_FLOAT flag in the ELF header.
- */
-
-#define SET_PERSONALITY(ex,ibcs2) \
-do { \
-	set_personality(PER_LINUX_32BIT); \
-	if (((ex).e_flags & EF_ARM_EABI_MASK) || \
-	    ((ex).e_flags & EF_ARM_SOFT_FLOAT)) \
-		set_thread_flag(TIF_USING_IWMMXT); \
-	else \
-		clear_thread_flag(TIF_USING_IWMMXT); \
-} while (0)
-
-#endif
-
-struct task_struct;
-
-extern int dump_task_regs (struct task_struct *, elf_gregset_t *);
-
-#define ELF_CORE_COPY_TASK_REGS(tsk, elf_regs) dump_task_regs(tsk, elf_regs)
-
-
-#endif
+extern void elf_set_personality(const struct elf32_hdr *);
+#define SET_PERSONALITY(ex)	elf_set_personality(&(ex))
 
 #endif
