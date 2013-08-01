@@ -1,6 +1,5 @@
 
 /* Overhauled routines for dealing with different mmap regions of flash */
-/* $Id: map.h,v 1.54 2005/11/07 11:14:54 gleixner Exp $ */
 
 #ifndef __LINUX_MTD_MAP_H__
 #define __LINUX_MTD_MAP_H__
@@ -8,6 +7,7 @@
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/string.h>
+#include <linux/bug.h>
 
 #include <linux/mtd/compatmac.h>
 
@@ -125,7 +125,15 @@
 #endif
 
 #ifndef map_bankwidth
-#error "No bus width supported. What's the point?"
+#warning "No CONFIG_MTD_MAP_BANK_WIDTH_xx selected. No NOR chip support can work"
+static inline int map_bankwidth(void *map)
+{
+	BUG();
+	return 0;
+}
+#define map_bankwidth_is_large(map) (0)
+#define map_words(map) (0)
+#define MAX_MAP_BANKWIDTH 1
 #endif
 
 static inline int map_bankwidth_supported(int w)
@@ -181,9 +189,9 @@ typedef union {
 */
 
 struct map_info {
-	char *name;
+	const char *name;
 	unsigned long size;
-	unsigned long phys;
+	resource_size_t phys;
 #define NO_XIP (-1UL)
 
 	void __iomem *virt;
@@ -216,6 +224,7 @@ struct map_info {
 	   must leave it enabled. */
 	void (*set_vpp)(struct map_info *, int);
 
+	unsigned long pfow_base;
 	unsigned long map_priv_1;
 	unsigned long map_priv_2;
 	void *fldrv_priv;
@@ -378,6 +387,8 @@ static inline map_word inline_map_read(struct map_info *map, unsigned long ofs)
 #endif
 	else if (map_bankwidth_is_large(map))
 		memcpy_fromio(r.x, map->virt+ofs, map->bankwidth);
+	else
+		BUG();
 
 	return r;
 }
