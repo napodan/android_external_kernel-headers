@@ -19,6 +19,10 @@
 
 #ifdef __KERNEL__
 
+#ifndef _LINUX_BITOPS_H
+#error only <linux/bitops.h> can be included directly
+#endif
+
 #include <linux/compiler.h>
 #include <asm/system.h>
 
@@ -37,9 +41,9 @@ static inline void ____atomic_set_bit(unsigned int bit, volatile unsigned long *
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	*p |= mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static inline void ____atomic_clear_bit(unsigned int bit, volatile unsigned long *p)
@@ -49,9 +53,9 @@ static inline void ____atomic_clear_bit(unsigned int bit, volatile unsigned long
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	*p &= ~mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static inline void ____atomic_change_bit(unsigned int bit, volatile unsigned long *p)
@@ -61,9 +65,9 @@ static inline void ____atomic_change_bit(unsigned int bit, volatile unsigned lon
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	*p ^= mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static inline int
@@ -75,12 +79,12 @@ ____atomic_test_and_set_bit(unsigned int bit, volatile unsigned long *p)
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	res = *p;
 	*p = res | mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
-	return res & mask;
+	return (res & mask) != 0;
 }
 
 static inline int
@@ -92,12 +96,12 @@ ____atomic_test_and_clear_bit(unsigned int bit, volatile unsigned long *p)
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	res = *p;
 	*p = res & ~mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
-	return res & mask;
+	return (res & mask) != 0;
 }
 
 static inline int
@@ -109,12 +113,12 @@ ____atomic_test_and_change_bit(unsigned int bit, volatile unsigned long *p)
 
 	p += bit >> 5;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	res = *p;
 	*p = res ^ mask;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
-	return res & mask;
+	return (res & mask) != 0;
 }
 
 #include <asm-generic/bitops/non-atomic.h>
@@ -233,6 +237,7 @@ extern int _find_next_bit_be(const unsigned long *p, int size, int offset);
 #if __LINUX_ARM_ARCH__ < 5
 
 #include <asm-generic/bitops/ffz.h>
+#include <asm-generic/bitops/__fls.h>
 #include <asm-generic/bitops/__ffs.h>
 #include <asm-generic/bitops/fls.h>
 #include <asm-generic/bitops/ffs.h>
@@ -273,9 +278,19 @@ static inline int constant_fls(int x)
  * the clz instruction for much better code efficiency.
  */
 
-#define fls(x) \
-	( __builtin_constant_p(x) ? constant_fls(x) : \
-	  ({ int __r; asm("clz\t%0, %1" : "=r"(__r) : "r"(x) : "cc"); 32-__r; }) )
+static inline int fls(int x)
+{
+	int ret;
+
+	if (__builtin_constant_p(x))
+	       return constant_fls(x);
+
+	asm("clz\t%0, %1" : "=r" (ret) : "r" (x) : "cc");
+       	ret = 32 - ret;
+	return ret;
+}
+
+#define __fls(x) (fls(x) - 1)
 #define ffs(x) ({ unsigned long __t = (x); fls(__t & -__t); })
 #define __ffs(x) (ffs(x) - 1)
 #define ffz(x) __ffs( ~(x) )
@@ -286,6 +301,7 @@ static inline int constant_fls(int x)
 
 #include <asm-generic/bitops/sched.h>
 #include <asm-generic/bitops/hweight.h>
+#include <asm-generic/bitops/lock.h>
 
 /*
  * Ext2 is defined to use little-endian byte ordering.
@@ -305,6 +321,8 @@ static inline int constant_fls(int x)
 		_find_first_zero_bit_le(p,sz)
 #define ext2_find_next_zero_bit(p,sz,off)	\
 		_find_next_zero_bit_le(p,sz,off)
+#define ext2_find_next_bit(p, sz, off) \
+		_find_next_bit_le(p, sz, off)
 
 /*
  * Minix is defined to use little-endian byte ordering.

@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/smp.h
+ *  arch/arm/include/asm/smp.h
  *
  *  Copyright (C) 2004-2005 ARM Ltd.
  *
@@ -14,10 +14,10 @@
 #include <linux/cpumask.h>
 #include <linux/thread_info.h>
 
-#include <asm/arch/smp.h>
+#include <mach/smp.h>
 
 #ifndef CONFIG_SMP
-# error "<asm-arm/smp.h> included in non-SMP build"
+# error "<asm/smp.h> included in non-SMP build"
 #endif
 
 #define raw_smp_processor_id() (current_thread_info()->cpu)
@@ -41,7 +41,7 @@ extern void show_ipi_list(struct seq_file *p);
 asmlinkage void do_IPI(struct pt_regs *regs);
 
 /*
- * Setup the SMP cpu_possible_map
+ * Setup the set of possible CPUs (via set_cpu_possible)
  */
 extern void smp_init_cpus(void);
 
@@ -53,12 +53,7 @@ extern void smp_store_cpu_info(unsigned int cpuid);
 /*
  * Raise an IPI cross call on CPUs in callmap.
  */
-extern void smp_cross_call(cpumask_t callmap);
-
-/*
- * Broadcast a timer interrupt to the other CPUs.
- */
-extern void smp_send_timer(void);
+extern void smp_cross_call(const struct cpumask *mask);
 
 /*
  * Boot a secondary CPU, and assign it the specified idle task.
@@ -87,7 +82,7 @@ struct secondary_data {
 extern struct secondary_data secondary_data;
 
 extern int __cpu_disable(void);
-extern int mach_cpu_disable(unsigned int cpu);
+extern int platform_cpu_disable(unsigned int cpu);
 
 extern void __cpu_die(unsigned int cpu);
 extern void cpu_die(void);
@@ -96,42 +91,12 @@ extern void platform_cpu_die(unsigned int cpu);
 extern int platform_cpu_kill(unsigned int cpu);
 extern void platform_cpu_enable(unsigned int cpu);
 
-#ifdef CONFIG_LOCAL_TIMERS
-/*
- * Setup a local timer interrupt for a CPU.
- */
-extern void local_timer_setup(unsigned int cpu);
-
-/*
- * Stop a local timer interrupt.
- */
-extern void local_timer_stop(unsigned int cpu);
-
-/*
- * Platform provides this to acknowledge a local timer IRQ
- */
-extern int local_timer_ack(void);
-
-#else
-
-static inline void local_timer_setup(unsigned int cpu)
-{
-}
-
-static inline void local_timer_stop(unsigned int cpu)
-{
-}
-
-#endif
+extern void arch_send_call_function_single_ipi(int cpu);
+extern void arch_send_call_function_ipi_mask(const struct cpumask *mask);
 
 /*
  * show local interrupt info
  */
 extern void show_local_irqs(struct seq_file *);
-
-/*
- * Called from assembly, this is the local timer IRQ handler
- */
-asmlinkage void do_local_timer(struct pt_regs *);
 
 #endif /* ifndef __ASM_ARM_SMP_H */

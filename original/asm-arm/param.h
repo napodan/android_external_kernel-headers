@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/param.h
+ *  arch/arm/include/asm/param.h
  *
  *  Copyright (C) 1995-1999 Russell King
  *

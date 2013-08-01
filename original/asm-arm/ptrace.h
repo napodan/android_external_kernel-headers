@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/ptrace.h
+ *  arch/arm/include/asm/ptrace.h
  *
  *  Copyright (C) 1996-2003 Russell King
  *
@@ -10,26 +10,25 @@
 #ifndef __ASM_ARM_PTRACE_H
 #define __ASM_ARM_PTRACE_H
 
+#include <asm/hwcap.h>
 
 #define PTRACE_GETREGS		12
 #define PTRACE_SETREGS		13
 #define PTRACE_GETFPREGS	14
 #define PTRACE_SETFPREGS	15
-
+/* PTRACE_ATTACH is 16 */
+/* PTRACE_DETACH is 17 */
 #define PTRACE_GETWMMXREGS	18
 #define PTRACE_SETWMMXREGS	19
-
+/* 20 is unused */
 #define PTRACE_OLDSETOPTIONS	21
-
 #define PTRACE_GET_THREAD_AREA	22
-
 #define PTRACE_SET_SYSCALL	23
-
 /* PTRACE_SYSCALL is 24 */
-
 #define PTRACE_GETCRUNCHREGS	25
 #define PTRACE_SETCRUNCHREGS	26
-#define PTRACE_GETVFPREGS       27
+#define PTRACE_GETVFPREGS	27
+#define PTRACE_SETVFPREGS	28
 
 /*
  * PSR bits
@@ -50,13 +49,14 @@
 #define PSR_T_BIT	0x00000020
 #define PSR_F_BIT	0x00000040
 #define PSR_I_BIT	0x00000080
+#define PSR_A_BIT	0x00000100
+#define PSR_E_BIT	0x00000200
 #define PSR_J_BIT	0x01000000
 #define PSR_Q_BIT	0x08000000
 #define PSR_V_BIT	0x10000000
 #define PSR_C_BIT	0x20000000
 #define PSR_Z_BIT	0x40000000
 #define PSR_N_BIT	0x80000000
-#define PCMASK		0
 
 /*
  * Groups of PSR bits
@@ -66,6 +66,30 @@
 #define PSR_x		0x0000ff00	/* Extension		*/
 #define PSR_c		0x000000ff	/* Control		*/
 
+/*
+ * ARMv7 groups of APSR bits
+ */
+#define PSR_ISET_MASK	0x01000010	/* ISA state (J, T) mask */
+#define PSR_IT_MASK	0x0600fc00	/* If-Then execution state mask */
+#define PSR_ENDIAN_MASK	0x00000200	/* Endianness state mask */
+
+/*
+ * Default endianness state
+ */
+#ifdef CONFIG_CPU_ENDIAN_BE8
+#define PSR_ENDSTATE	PSR_E_BIT
+#else
+#define PSR_ENDSTATE	0
+#endif
+
+/* 
+ * These are 'magic' values for PTRACE_PEEKUSR that return info about where a
+ * process is located in memory.
+ */
+#define PT_TEXT_ADDR		0x10000
+#define PT_DATA_ADDR		0x10004
+#define PT_TEXT_END_ADDR	0x10008
+
 #ifndef __ASSEMBLY__
 
 /*
@@ -73,14 +97,15 @@
  * stack during a system call.  Note that sizeof(struct pt_regs)
  * has to be a multiple of 8.
  */
+#ifndef __KERNEL__
 struct pt_regs {
-  long uregs[18];
+	long uregs[18];
 };
-
-struct user_vfp {
-  unsigned long long fpregs[32];
-  unsigned long fpscr;
+#else /* __KERNEL__ */
+struct pt_regs {
+	unsigned long uregs[18];
 };
+#endif /* __KERNEL__ */
 
 #define ARM_cpsr	uregs[16]
 #define ARM_pc		uregs[15]
@@ -103,6 +128,8 @@ struct user_vfp {
 
 #ifdef __KERNEL__
 
+#define arch_has_single_step()	(1)
+
 #define user_mode(regs)	\
 	(((regs)->ARM_cpsr & 0xf) == 0)
 
@@ -113,6 +140,10 @@ struct user_vfp {
 #define thumb_mode(regs) (0)
 #endif
 
+#define isa_mode(regs) \
+	((((regs)->ARM_cpsr & PSR_J_BIT) >> 23) | \
+	 (((regs)->ARM_cpsr & PSR_T_BIT) >> 5))
+
 #define processor_mode(regs) \
 	((regs)->ARM_cpsr & MODE_MASK)
 
@@ -122,33 +153,36 @@ struct user_vfp {
 #define fast_interrupts_enabled(regs) \
 	(!((regs)->ARM_cpsr & PSR_F_BIT))
 
-#define condition_codes(regs) \
-	((regs)->ARM_cpsr & (PSR_V_BIT|PSR_C_BIT|PSR_Z_BIT|PSR_N_BIT))
-	
 /* Are the current registers suitable for user mode?
  * (used to maintain security in signal handlers)
  */
 static inline int valid_user_regs(struct pt_regs *regs)
 {
-	if (user_mode(regs) &&
-	    (regs->ARM_cpsr & (PSR_F_BIT|PSR_I_BIT)) == 0)
-		return 1;
+	unsigned long mode = regs->ARM_cpsr & MODE_MASK;
+
+	/*
+	 * Always clear the F (FIQ) and A (delayed abort) bits
+	 */
+	regs->ARM_cpsr &= ~(PSR_F_BIT | PSR_A_BIT);
+
+	if ((regs->ARM_cpsr & PSR_I_BIT) == 0) {
+		if (mode == USR_MODE)
+			return 1;
+		if (elf_hwcap & HWCAP_26BIT && mode == USR26_MODE)
+			return 1;
+	}
 
 	/*
 	 * Force CPSR to something logical...
 	 */
 	regs->ARM_cpsr &= PSR_f | PSR_s | PSR_x | PSR_T_BIT | MODE32_BIT;
+	if (!(elf_hwcap & HWCAP_26BIT))
+		regs->ARM_cpsr |= USR_MODE;
 
 	return 0;
 }
 
-#endif	/* __KERNEL__ */
-
-#define pc_pointer(v) \
-	((v) & ~PCMASK)
-
-#define instruction_pointer(regs) \
-	(pc_pointer((regs)->ARM_pc))
+#define instruction_pointer(regs)	(regs)->ARM_pc
 
 #ifdef CONFIG_SMP
 extern unsigned long profile_pc(struct pt_regs *regs);
@@ -156,10 +190,10 @@ extern unsigned long profile_pc(struct pt_regs *regs);
 #define profile_pc(regs) instruction_pointer(regs)
 #endif
 
-#ifdef __KERNEL__
 #define predicate(x)		((x) & 0xf0000000)
 #define PREDICATE_ALWAYS	0xe0000000
-#endif
+
+#endif /* __KERNEL__ */
 
 #endif /* __ASSEMBLY__ */
 
