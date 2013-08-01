@@ -1,7 +1,7 @@
 /*
  * include/linux/ashmem.h
  *
- * Copyright 2008 The Android Open Source Project
+ * Copyright 2008 Google Inc.
  * Author: Robert Love
  *
  * This file is dual licensed.  It may be redistributed and/or modified
