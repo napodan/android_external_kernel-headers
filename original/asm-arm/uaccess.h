@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/uaccess.h
+ *  arch/arm/include/asm/uaccess.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -11,11 +11,13 @@
 /*
  * User space memory access functions
  */
-#include <linux/sched.h>
+#include <linux/string.h>
+#include <linux/thread_info.h>
 #include <asm/errno.h>
 #include <asm/memory.h>
 #include <asm/domain.h>
 #include <asm/system.h>
+#include <asm/unified.h>
 
 #define VERIFY_READ 0
 #define VERIFY_WRITE 1
@@ -76,10 +78,10 @@ static inline void set_fs(mm_segment_t fs)
 
 /* We use 33-bit arithmetic here... */
 #define __range_ok(addr,size) ({ \
-	unsigned long flag, sum; \
+	unsigned long flag, roksum; \
 	__chk_user_ptr(addr);	\
 	__asm__("adds %1, %2, %3; sbcccs %1, %1, %0; movcc %0, #0" \
-		: "=&r" (flag), "=&r" (sum) \
+		: "=&r" (flag), "=&r" (roksum) \
 		: "r" (addr), "Ir" (size), "0" (current_thread_info()->addr_limit) \
 		: "cc"); \
 	flag; })
@@ -109,8 +111,8 @@ extern int __get_user_4(void *);
 
 #define get_user(x,p)							\
 	({								\
-		const register typeof(*(p)) __user *__p asm("r0") = (p);\
-		register unsigned int __r2 asm("r2");			\
+		register const typeof(*(p)) __user *__p asm("r0") = (p);\
+		register unsigned long __r2 asm("r2");			\
 		register int __e asm("r0");				\
 		switch (sizeof(*(__p))) {				\
 		case 1:							\
@@ -143,8 +145,8 @@ extern int __put_user_8(void *, unsigned long long);
 
 #define put_user(x,p)							\
 	({								\
-		const register typeof(*(p)) __r2 asm("r2") = (x);	\
-		const register typeof(*(p)) __user *__p asm("r0") = (p);\
+		register const typeof(*(p)) __r2 asm("r2") = (x);	\
+		register const typeof(*(p)) __user *__p asm("r0") = (p);\
 		register int __e asm("r0");				\
 		switch (sizeof(*(__p))) {				\
 		case 1:							\
@@ -225,18 +227,18 @@ do {									\
 
 #define __get_user_asm_byte(x,addr,err)				\
 	__asm__ __volatile__(					\
-	"1:	ldrbt	%1,[%2],#0\n"				\
+	"1:	ldrbt	%1,[%2]\n"				\
 	"2:\n"							\
-	"	.section .fixup,\"ax\"\n"			\
+	"	.pushsection .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\
 	"3:	mov	%0, %3\n"				\
 	"	mov	%1, #0\n"				\
 	"	b	2b\n"					\
-	"	.previous\n"					\
-	"	.section __ex_table,\"a\"\n"			\
+	"	.popsection\n"					\
+	"	.pushsection __ex_table,\"a\"\n"		\
 	"	.align	3\n"					\
 	"	.long	1b, 3b\n"				\
-	"	.previous"					\
+	"	.popsection"					\
 	: "+r" (err), "=&r" (x)					\
 	: "r" (addr), "i" (-EFAULT)				\
 	: "cc")
@@ -261,18 +263,18 @@ do {									\
 
 #define __get_user_asm_word(x,addr,err)				\
 	__asm__ __volatile__(					\
-	"1:	ldrt	%1,[%2],#0\n"				\
+	"1:	ldrt	%1,[%2]\n"				\
 	"2:\n"							\
-	"	.section .fixup,\"ax\"\n"			\
+	"	.pushsection .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\
 	"3:	mov	%0, %3\n"				\
 	"	mov	%1, #0\n"				\
 	"	b	2b\n"					\
-	"	.previous\n"					\
-	"	.section __ex_table,\"a\"\n"			\
+	"	.popsection\n"					\
+	"	.pushsection __ex_table,\"a\"\n"		\
 	"	.align	3\n"					\
 	"	.long	1b, 3b\n"				\
-	"	.previous"					\
+	"	.popsection"					\
 	: "+r" (err), "=&r" (x)					\
 	: "r" (addr), "i" (-EFAULT)				\
 	: "cc")
@@ -306,17 +308,17 @@ do {									\
 
 #define __put_user_asm_byte(x,__pu_addr,err)			\
 	__asm__ __volatile__(					\
-	"1:	strbt	%1,[%2],#0\n"				\
+	"1:	strbt	%1,[%2]\n"				\
 	"2:\n"							\
-	"	.section .fixup,\"ax\"\n"			\
+	"	.pushsection .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\
 	"3:	mov	%0, %3\n"				\
 	"	b	2b\n"					\
-	"	.previous\n"					\
-	"	.section __ex_table,\"a\"\n"			\
+	"	.popsection\n"					\
+	"	.pushsection __ex_table,\"a\"\n"		\
 	"	.align	3\n"					\
 	"	.long	1b, 3b\n"				\
-	"	.previous"					\
+	"	.popsection"					\
 	: "+r" (err)						\
 	: "r" (x), "r" (__pu_addr), "i" (-EFAULT)		\
 	: "cc")
@@ -339,17 +341,17 @@ do {									\
 
 #define __put_user_asm_word(x,__pu_addr,err)			\
 	__asm__ __volatile__(					\
-	"1:	strt	%1,[%2],#0\n"				\
+	"1:	strt	%1,[%2]\n"				\
 	"2:\n"							\
-	"	.section .fixup,\"ax\"\n"			\
+	"	.pushsection .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\
 	"3:	mov	%0, %3\n"				\
 	"	b	2b\n"					\
-	"	.previous\n"					\
-	"	.section __ex_table,\"a\"\n"			\
+	"	.popsection\n"					\
+	"	.pushsection __ex_table,\"a\"\n"		\
 	"	.align	3\n"					\
 	"	.long	1b, 3b\n"				\
-	"	.previous"					\
+	"	.popsection"					\
 	: "+r" (err)						\
 	: "r" (x), "r" (__pu_addr), "i" (-EFAULT)		\
 	: "cc")
@@ -364,47 +366,51 @@ do {									\
 
 #define __put_user_asm_dword(x,__pu_addr,err)			\
 	__asm__ __volatile__(					\
-	"1:	strt	" __reg_oper1 ", [%1], #4\n"		\
-	"2:	strt	" __reg_oper0 ", [%1], #0\n"		\
+ ARM(	"1:	strt	" __reg_oper1 ", [%1], #4\n"	)	\
+ ARM(	"2:	strt	" __reg_oper0 ", [%1]\n"	)	\
+ THUMB(	"1:	strt	" __reg_oper1 ", [%1]\n"	)	\
+ THUMB(	"2:	strt	" __reg_oper0 ", [%1, #4]\n"	)	\
 	"3:\n"							\
-	"	.section .fixup,\"ax\"\n"			\
+	"	.pushsection .fixup,\"ax\"\n"			\
 	"	.align	2\n"					\
 	"4:	mov	%0, %3\n"				\
 	"	b	3b\n"					\
-	"	.previous\n"					\
-	"	.section __ex_table,\"a\"\n"			\
+	"	.popsection\n"					\
+	"	.pushsection __ex_table,\"a\"\n"		\
 	"	.align	3\n"					\
 	"	.long	1b, 4b\n"				\
 	"	.long	2b, 4b\n"				\
-	"	.previous"					\
+	"	.popsection"					\
 	: "+r" (err), "+r" (__pu_addr)				\
 	: "r" (x), "i" (-EFAULT)				\
 	: "cc")
 
 
 #ifdef CONFIG_MMU
-extern unsigned long __copy_from_user(void *to, const void __user *from, unsigned long n);
-extern unsigned long __copy_to_user(void __user *to, const void *from, unsigned long n);
-extern unsigned long __clear_user(void __user *addr, unsigned long n);
+extern unsigned long __must_check __copy_from_user(void *to, const void __user *from, unsigned long n);
+extern unsigned long __must_check __copy_to_user(void __user *to, const void *from, unsigned long n);
+extern unsigned long __must_check __copy_to_user_std(void __user *to, const void *from, unsigned long n);
+extern unsigned long __must_check __clear_user(void __user *addr, unsigned long n);
+extern unsigned long __must_check __clear_user_std(void __user *addr, unsigned long n);
 #else
 #define __copy_from_user(to,from,n)	(memcpy(to, (void __force *)from, n), 0)
 #define __copy_to_user(to,from,n)	(memcpy((void __force *)to, from, n), 0)
 #define __clear_user(addr,n)		(memset((void __force *)addr, 0, n), 0)
 #endif
 
-extern unsigned long __strncpy_from_user(char *to, const char __user *from, unsigned long count);
-extern unsigned long __strnlen_user(const char __user *s, long n);
+extern unsigned long __must_check __strncpy_from_user(char *to, const char __user *from, unsigned long count);
+extern unsigned long __must_check __strnlen_user(const char __user *s, long n);
 
-static inline unsigned long copy_from_user(void *to, const void __user *from, unsigned long n)
+static inline unsigned long __must_check copy_from_user(void *to, const void __user *from, unsigned long n)
 {
 	if (access_ok(VERIFY_READ, from, n))
 		n = __copy_from_user(to, from, n);
 	else /* security hole - plug it */
-		memzero(to, n);
+		memset(to, 0, n);
 	return n;
 }
 
-static inline unsigned long copy_to_user(void __user *to, const void *from, unsigned long n)
+static inline unsigned long __must_check copy_to_user(void __user *to, const void *from, unsigned long n)
 {
 	if (access_ok(VERIFY_WRITE, to, n))
 		n = __copy_to_user(to, from, n);
@@ -414,14 +420,14 @@ static inline unsigned long copy_to_user(void __user *to, const void *from, unsi
 #define __copy_to_user_inatomic __copy_to_user
 #define __copy_from_user_inatomic __copy_from_user
 
-static inline unsigned long clear_user(void __user *to, unsigned long n)
+static inline unsigned long __must_check clear_user(void __user *to, unsigned long n)
 {
 	if (access_ok(VERIFY_WRITE, to, n))
 		n = __clear_user(to, n);
 	return n;
 }
 
-static inline long strncpy_from_user(char *dst, const char __user *src, long count)
+static inline long __must_check strncpy_from_user(char *dst, const char __user *src, long count)
 {
 	long res = -EFAULT;
 	if (access_ok(VERIFY_READ, src, 1))
@@ -431,7 +437,7 @@ static inline long strncpy_from_user(char *dst, const char __user *src, long cou
 
 #define strlen_user(s)	strnlen_user(s, ~0UL >> 1)
 
-static inline long strnlen_user(const char __user *s, long n)
+static inline long __must_check strnlen_user(const char __user *s, long n)
 {
 	unsigned long res = 0;
 

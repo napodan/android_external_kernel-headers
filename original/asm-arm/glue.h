@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/glue.h
+ *  arch/arm/include/asm/glue.h
  *
  *  Copyright (C) 1997-1999 Russell King
  *  Copyright (C) 2000-2002 Deep Blue Solutions Ltd.
@@ -38,76 +38,126 @@
  *	  v5tej_early	- ARMv5 with Thumb and Java early abort handler
  *	  xscale	- ARMv5 with Thumb with Xscale extensions
  *	  v6_early	- ARMv6 generic early abort handler
+ *	  v7_early	- ARMv7 generic early abort handler
  */
-#undef CPU_ABORT_HANDLER
-#undef MULTI_ABORT
+#undef CPU_DABORT_HANDLER
+#undef MULTI_DABORT
 
 #if defined(CONFIG_CPU_ARM610)
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER cpu_arm6_data_abort
+#  define CPU_DABORT_HANDLER cpu_arm6_data_abort
 # endif
 #endif
 
 #if defined(CONFIG_CPU_ARM710)
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER cpu_arm7_data_abort
+#  define CPU_DABORT_HANDLER cpu_arm7_data_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_LV4T
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v4t_late_abort
+#  define CPU_DABORT_HANDLER v4t_late_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_EV4
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v4_early_abort
+#  define CPU_DABORT_HANDLER v4_early_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_EV4T
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v4t_early_abort
+#  define CPU_DABORT_HANDLER v4t_early_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_EV5TJ
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v5tj_early_abort
+#  define CPU_DABORT_HANDLER v5tj_early_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_EV5T
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v5t_early_abort
+#  define CPU_DABORT_HANDLER v5t_early_abort
 # endif
 #endif
 
 #ifdef CONFIG_CPU_ABRT_EV6
-# ifdef CPU_ABORT_HANDLER
-#  define MULTI_ABORT 1
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
 # else
-#  define CPU_ABORT_HANDLER v6_early_abort
+#  define CPU_DABORT_HANDLER v6_early_abort
 # endif
 #endif
 
-#ifndef CPU_ABORT_HANDLER
+#ifdef CONFIG_CPU_ABRT_EV7
+# ifdef CPU_DABORT_HANDLER
+#  define MULTI_DABORT 1
+# else
+#  define CPU_DABORT_HANDLER v7_early_abort
+# endif
+#endif
+
+#ifndef CPU_DABORT_HANDLER
 #error Unknown data abort handler type
+#endif
+
+/*
+ *	Prefetch Abort Model
+ *	================
+ *
+ *	We have the following to choose from:
+ *	  legacy	- no IFSR, no IFAR
+ *	  v6		- ARMv6: IFSR, no IFAR
+ *	  v7		- ARMv7: IFSR and IFAR
+ */
+
+#undef CPU_PABORT_HANDLER
+#undef MULTI_PABORT
+
+#ifdef CONFIG_CPU_PABRT_LEGACY
+# ifdef CPU_PABORT_HANDLER
+#  define MULTI_PABORT 1
+# else
+#  define CPU_PABORT_HANDLER legacy_pabort
+# endif
+#endif
+
+#ifdef CONFIG_CPU_PABRT_V6
+# ifdef CPU_PABORT_HANDLER
+#  define MULTI_PABORT 1
+# else
+#  define CPU_PABORT_HANDLER v6_pabort
+# endif
+#endif
+
+#ifdef CONFIG_CPU_PABRT_V7
+# ifdef CPU_PABORT_HANDLER
+#  define MULTI_PABORT 1
+# else
+#  define CPU_PABORT_HANDLER v7_pabort
+# endif
+#endif
+
+#ifndef CPU_PABORT_HANDLER
+#error Unknown prefetch abort handler type
 #endif
 
 #endif

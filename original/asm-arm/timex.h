@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/timex.h
+ *  arch/arm/include/asm/timex.h
  *
  *  Copyright (C) 1997,1998 Russell King
  *
@@ -12,7 +12,7 @@
 #ifndef _ASMARM_TIMEX_H
 #define _ASMARM_TIMEX_H
 
-#include <asm/arch/timex.h>
+#include <mach/timex.h>
 
 typedef unsigned long cycles_t;
 

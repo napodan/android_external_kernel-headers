@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/locks.h
+ *  arch/arm/include/asm/locks.h
  *
  *  Copyright (C) 2000 Russell King
  *

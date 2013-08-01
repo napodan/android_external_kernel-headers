@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/processor.h
+ *  arch/arm/include/asm/processor.h
  *
  *  Copyright (C) 1995-1999 Russell King
  *
@@ -20,8 +20,13 @@
 #ifdef __KERNEL__
 
 #include <asm/ptrace.h>
-#include <asm/procinfo.h>
 #include <asm/types.h>
+
+#ifdef __KERNEL__
+#define STACK_TOP	((current->personality & ADDR_LIMIT_32BIT) ? \
+			 TASK_SIZE : TASK_SIZE_26)
+#define STACK_TOP_MAX	TASK_SIZE
+#endif
 
 union debug_insn {
 	u32	arm;
@@ -59,13 +64,14 @@ struct thread_struct {
 ({									\
 	unsigned long *stack = (unsigned long *)sp;			\
 	set_fs(USER_DS);						\
-	memzero(regs->uregs, sizeof(regs->uregs));			\
+	memset(regs->uregs, 0, sizeof(regs->uregs));			\
 	if (current->personality & ADDR_LIMIT_32BIT)			\
 		regs->ARM_cpsr = USR_MODE;				\
 	else								\
 		regs->ARM_cpsr = USR26_MODE;				\
 	if (elf_hwcap & HWCAP_THUMB && pc & 1)				\
 		regs->ARM_cpsr |= PSR_T_BIT;				\
+	regs->ARM_cpsr |= PSR_ENDSTATE;					\
 	regs->ARM_pc = pc & ~1;		/* pc */			\
 	regs->ARM_sp = sp;		/* sp */			\
 	regs->ARM_r2 = stack[2];	/* r2 (envp) */			\
@@ -85,7 +91,11 @@ extern void release_thread(struct task_struct *);
 
 unsigned long get_wchan(struct task_struct *p);
 
+#if __LINUX_ARM_ARCH__ == 6
+#define cpu_relax()			smp_mb()
+#else
 #define cpu_relax()			barrier()
+#endif
 
 /*
  * Create a new kernel thread
@@ -104,14 +114,14 @@ extern int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags);
 #if __LINUX_ARM_ARCH__ >= 5
 
 #define ARCH_HAS_PREFETCH
-#define prefetch(ptr)				\
-	({					\
-		__asm__ __volatile__(		\
-		"pld\t%0"			\
-		:				\
-		: "o" (*(char *)(ptr))		\
-		: "cc");			\
-	})
+static inline void prefetch(const void *ptr)
+{
+	__asm__ __volatile__(
+		"pld\t%a0"
+		:
+		: "p" (ptr)
+		: "cc");
+}
 
 #define ARCH_HAS_PREFETCHW
 #define prefetchw(ptr)	prefetch(ptr)

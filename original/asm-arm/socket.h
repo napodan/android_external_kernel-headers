@@ -49,5 +49,17 @@
 
 #define SO_PEERSEC		31
 #define SO_PASSSEC		34
+#define SO_TIMESTAMPNS		35
+#define SCM_TIMESTAMPNS		SO_TIMESTAMPNS
+
+#define SO_MARK			36
+
+#define SO_TIMESTAMPING		37
+#define SCM_TIMESTAMPING	SO_TIMESTAMPING
+
+#define SO_PROTOCOL		38
+#define SO_DOMAIN		39
+
+#define SO_RXQ_OVFL             40
 
 #endif /* _ASM_SOCKET_H */

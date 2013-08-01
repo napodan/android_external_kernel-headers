@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/pgtable-hwdef.h
+ *  arch/arm/include/asm/pgtable-hwdef.h
  *
  *  Copyright (C) 1995-2002 Russell King
  *

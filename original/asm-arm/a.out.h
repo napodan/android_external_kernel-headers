@@ -2,7 +2,7 @@
 #define __ARM_A_OUT_H__
 
 #include <linux/personality.h>
-#include <asm/types.h>
+#include <linux/types.h>
 
 struct exec
 {
@@ -26,11 +26,6 @@ struct exec
 #define N_SYMSIZE(a)	((a).a_syms)
 
 #define M_ARM 103
-
-#ifdef __KERNEL__
-#define STACK_TOP	((current->personality == PER_LINUX_32BIT) ? \
-			 TASK_SIZE : TASK_SIZE_26)
-#endif
 
 #ifndef LIBRARY_START_TEXT
 #define LIBRARY_START_TEXT	(0x00c00000)

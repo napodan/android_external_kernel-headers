@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/page.h
+ *  arch/arm/include/asm/page.h
  *
  *  Copyright (C) 1995-2003 Russell King
  *
@@ -10,16 +10,10 @@
 #ifndef _ASMARM_PAGE_H
 #define _ASMARM_PAGE_H
 
-
 /* PAGE_SHIFT determines the page size */
 #define PAGE_SHIFT		12
-#define PAGE_SIZE		(1UL << PAGE_SHIFT)
+#define PAGE_SIZE		(_AC(1,UL) << PAGE_SHIFT)
 #define PAGE_MASK		(~(PAGE_SIZE-1))
-
-#ifdef __KERNEL__
-
-/* to align the pointer to the (next) page boundary */
-#define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
 #ifndef __ASSEMBLY__
 
@@ -74,6 +68,22 @@
 # endif
 #endif
 
+#ifdef CONFIG_CPU_COPY_FEROCEON
+# ifdef _USER
+#  define MULTI_USER 1
+# else
+#  define _USER feroceon
+# endif
+#endif
+
+#ifdef CONFIG_CPU_COPY_FA
+# ifdef _USER
+#  define MULTI_USER 1
+# else
+#  define _USER fa
+# endif
+#endif
+
 #ifdef CONFIG_CPU_SA1100
 # ifdef _USER
 #  define MULTI_USER 1
@@ -106,32 +116,39 @@
 #error Unknown user operations model
 #endif
 
+struct page;
+struct vm_area_struct;
+
 struct cpu_user_fns {
-	void (*cpu_clear_user_page)(void *p, unsigned long user);
-	void (*cpu_copy_user_page)(void *to, const void *from,
-				   unsigned long user);
+	void (*cpu_clear_user_highpage)(struct page *page, unsigned long vaddr);
+	void (*cpu_copy_user_highpage)(struct page *to, struct page *from,
+			unsigned long vaddr, struct vm_area_struct *vma);
 };
 
 #ifdef MULTI_USER
 extern struct cpu_user_fns cpu_user;
 
-#define __cpu_clear_user_page	cpu_user.cpu_clear_user_page
-#define __cpu_copy_user_page	cpu_user.cpu_copy_user_page
+#define __cpu_clear_user_highpage	cpu_user.cpu_clear_user_highpage
+#define __cpu_copy_user_highpage	cpu_user.cpu_copy_user_highpage
 
 #else
 
-#define __cpu_clear_user_page	__glue(_USER,_clear_user_page)
-#define __cpu_copy_user_page	__glue(_USER,_copy_user_page)
+#define __cpu_clear_user_highpage	__glue(_USER,_clear_user_highpage)
+#define __cpu_copy_user_highpage	__glue(_USER,_copy_user_highpage)
 
-extern void __cpu_clear_user_page(void *p, unsigned long user);
-extern void __cpu_copy_user_page(void *to, const void *from,
-				 unsigned long user);
+extern void __cpu_clear_user_highpage(struct page *page, unsigned long vaddr);
+extern void __cpu_copy_user_highpage(struct page *to, struct page *from,
+			unsigned long vaddr, struct vm_area_struct *vma);
 #endif
 
-#define clear_user_page(addr,vaddr,pg)	 __cpu_clear_user_page(addr, vaddr)
-#define copy_user_page(to,from,vaddr,pg) __cpu_copy_user_page(to, from, vaddr)
+#define clear_user_highpage(page,vaddr)		\
+	 __cpu_clear_user_highpage(page, vaddr)
 
-#define clear_page(page)	memzero((void *)(page), PAGE_SIZE)
+#define __HAVE_ARCH_COPY_USER_HIGHPAGE
+#define copy_user_highpage(to,from,vaddr,vma)	\
+	__cpu_copy_user_highpage(to, from, vaddr, vma)
+
+#define clear_page(page)	memset((void *)(page), 0, PAGE_SIZE)
 extern void copy_page(void *to, const void *from);
 
 #undef STRICT_MM_TYPECHECKS
@@ -174,27 +191,22 @@ typedef unsigned long pgprot_t;
 
 #endif /* STRICT_MM_TYPECHECKS */
 
-/* the upper-most page table pointer */
-extern pmd_t *top_pmd;
-
 #endif /* CONFIG_MMU */
+
+typedef struct page *pgtable_t;
+
+#ifndef CONFIG_SPARSEMEM
+extern int pfn_valid(unsigned long);
+#endif
 
 #include <asm/memory.h>
 
 #endif /* !__ASSEMBLY__ */
 
-#define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
-				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+#define VM_DATA_DEFAULT_FLAGS \
+	(((current->personality & READ_IMPLIES_EXEC) ? VM_EXEC : 0) | \
+	 VM_READ | VM_WRITE | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
 
-/*
- * With EABI on ARMv5 and above we must have 64-bit aligned slab pointers.
- */
-#if defined(CONFIG_AEABI) && (__LINUX_ARM_ARCH__ >= 5)
-#define ARCH_SLAB_MINALIGN 8
-#endif
-
-#include <asm-generic/page.h>
-
-#endif /* __KERNEL__ */
+#include <asm-generic/getorder.h>
 
 #endif

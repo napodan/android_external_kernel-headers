@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-arm/domain.h
+ *  arch/arm/include/asm/domain.h
  *
  *  Copyright (C) 1999 Russell King.
  *
@@ -27,8 +27,13 @@
  *
  * 36-bit addressing and supersections are only available on
  * CPUs based on ARMv6+ or the Intel XSC3 core.
+ *
+ * We cannot use domain 0 for the kernel on QSD8x50 since the kernel domain
+ * is set to manager mode when set_fs(KERNEL_DS) is called. Setting domain 0
+ * to manager mode will disable the workaround for a cpu bug that can cause an
+ * invalid fault status and/or tlb corruption (CONFIG_VERIFY_PERMISSION_FAULT).
  */
-#ifndef CONFIG_IO_36
+#if !defined(CONFIG_IO_36) && !defined(CONFIG_VERIFY_PERMISSION_FAULT)
 #define DOMAIN_KERNEL	0
 #define DOMAIN_TABLE	0
 #define DOMAIN_USER	1
@@ -57,6 +62,7 @@
 	__asm__ __volatile__(				\
 	"mcr	p15, 0, %0, c3, c0	@ set domain"	\
 	  : : "r" (x));					\
+	isb();						\
 	} while (0)
 
 #define modify_domain(dom,type)					\
